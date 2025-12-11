@@ -11,7 +11,31 @@ app.use(express.json());
 
 let memory = await loadMemory();
 
-// Endpoint Messenger ou test
+// ===============================
+// Vérification du webhook Messenger
+// ===============================
+app.get("/webhook", (req, res) => {
+  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode && token) {
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("Webhook vérifié ✅");
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  } else {
+    res.sendStatus(400);
+  }
+});
+
+// ===============================
+// Endpoint pour les messages
+// ===============================
 app.post("/message", async (req, res) => {
   const { text } = req.body;
 
@@ -33,8 +57,10 @@ app.post("/message", async (req, res) => {
   res.json({ reply });
 });
 
+// Endpoint racine pour test rapide
 app.get("/", (req, res) => {
   res.send("Bot Meva en ligne ✅");
 });
 
+// Lancer le serveur
 app.listen(PORT, () => console.log(`🔥 Bot en ligne sur port ${PORT}`));
