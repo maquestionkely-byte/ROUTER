@@ -10,7 +10,9 @@ const PORT = process.env.PORT || 10000;
 
 app.use(express.json());
 
+// Charger la mémoire et s'assurer que c'est un tableau
 let memory = await loadMemory();
+if (!Array.isArray(memory)) memory = [];
 
 // ===============================
 // Vérification du webhook Messenger
