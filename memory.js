@@ -8,12 +8,13 @@ const MEMORY_FILE = process.env.MEMORY_FILE || "memory.json";
 export async function loadMemory() {
   try {
     const exists = await fs.pathExists(MEMORY_FILE);
-    if (!exists) return {};
+    if (!exists) return []; // <-- retourner un tableau vide
     const data = await fs.readFile(MEMORY_FILE, "utf-8");
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.error("Erreur lecture mémoire:", e);
-    return {};
+    return [];
   }
 }
 
