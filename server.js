@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
 import { callChat, generateImage } from "./callOpenRouter.js";
 import { loadMemory, saveMemory } from "./memory.js";
 
@@ -16,7 +17,6 @@ let memory = await loadMemory();
 // ===============================
 app.get("/webhook", (req, res) => {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
@@ -34,27 +34,47 @@ app.get("/webhook", (req, res) => {
 });
 
 // ===============================
-// Endpoint pour les messages
+// Endpoint pour les messages Messenger
 // ===============================
-app.post("/message", async (req, res) => {
-  const { text } = req.body;
+app.post("/webhook", async (req, res) => {
+  const body = req.body;
 
-  if (!text) return res.status(400).json({ reply: "Pas de message reçu." });
+  if (body.object === "page") {
+    for (const entry of body.entry) {
+      for (const event of entry.messaging) {
+        const senderId = event.sender.id;
+        const text = event.message?.text;
 
-  let reply;
-  if (text.toLowerCase().startsWith("image:") || text.toLowerCase().startsWith("sary:")) {
-    const prompt = text.split(":")[1].trim();
-    const url = await generateImage(prompt);
-    reply = url ? `Voici ton image : ${url}` : "Impossible de générer l'image.";
+        if (!text) continue;
+
+        let reply;
+
+        if (text.toLowerCase().startsWith("image:") || text.toLowerCase().startsWith("sary:")) {
+          const prompt = text.split(":")[1].trim();
+          const url = await generateImage(prompt);
+          reply = url ? `Voici ton image : ${url}` : "Impossible de générer l'image.";
+        } else {
+          reply = await callChat(text, memory);
+          memory.push({ role: "user", content: text });
+          memory.push({ role: "assistant", content: reply });
+          await saveMemory(memory);
+        }
+
+        // Envoyer la réponse via Messenger API
+        await fetch(`https://graph.facebook.com/v16.0/me/messages?access_token=${process.env.PAGE_ACCESS_TOKEN}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipient: { id: senderId },
+            message: { text: reply }
+          }),
+        });
+      }
+    }
+    res.status(200).send("EVENT_RECEIVED");
   } else {
-    reply = await callChat(text, memory);
-    // Mettre à jour la mémoire
-    memory.push({ role: "user", content: text });
-    memory.push({ role: "assistant", content: reply });
-    await saveMemory(memory);
+    res.sendStatus(404);
   }
-
-  res.json({ reply });
 });
 
 // Endpoint racine pour test rapide
